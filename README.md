@@ -10,7 +10,7 @@ OwnerName[i]
 
 CarModel[i]
 
-StartDate[i] (ฟอร์แมต YYYY-MM-DD)
+StartDate[i] (ใช้ฟอร์แมต YYYY-MM-DD)
 
 คอนสแตนด์ที่ใช้
 
