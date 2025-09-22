@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
-#include <ctype.h> //ใช้เพื่อตรวจสอบว่าเป็นตัวเลข isdigits
+#include <stdlib.h> //ใช้ strtol
+#include <ctype.h>  //ใช้เพื่อตรวจสอบว่าเป็นตัวเลข isdigits
 
 #define MAX_RECORDS 1000 // เก็บได้สูงสุด 1000 เรคคอร์ด
 #define MAX_STR     64   // ความยาวสตริงต่อฟิลด์ (รวม '\0')
@@ -411,3 +411,4 @@ int main(void) {
     }
     return 0;
 }
+
