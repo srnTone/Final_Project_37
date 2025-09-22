@@ -131,15 +131,46 @@ static int find_index_by_policy(const char *policy) {
 
 // List All
 static void list_all(void) {
-    printf("\n%-12s | %-20s | %-16s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
+    printf("\n%-7s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
     printf("-------------------------------------------------------------------------------\n");
     for (int i = 0; i < rec_count; ++i) {
-        printf("%-12s | %-20s | %-16s | %-10s\n",
+        printf("%-7s | %-20s | %-20s | %-10s\n",
                PolicyNumber[i], OwnerName[i], CarModel[i], StartDate[i]);
     }
 }
 
+// Add
+//เหลือเพิ่มต่อหรือออกเลย/ตรวจสอบให้ใส่ข้อมูลตามฟอร์แมต ถ้าไม่ตรงไม่บันทึกหรือออก
+static void add_policy(void) {
+    if (rec_count >= MAX_RECORDS) { puts("Database is full."); return; }
+
+    char buf[MAX_STR];
+
+    printf("\nAdd new\nPolicy Number: ");
+    if (!read_line(buf, sizeof(buf))) { puts("Cancelled."); return; }
+    trim_spaces(buf);
+    if (buf[0] == '\0') { puts("Cancelled."); return; }
+    if (find_index_by_policy(buf) != -1) { puts("This insurance number ALREADY EXISTS."); return; }
+    strncpy(PolicyNumber[rec_count], buf, MAX_STR-1); PolicyNumber[rec_count][MAX_STR-1]='\0';
+
+    printf("OwnerName: ");
+    if (!read_line(OwnerName[rec_count], MAX_STR)) { puts("Cancelled."); return; }
+    trim_spaces(OwnerName[rec_count]);
+
+    printf("CarModel: ");
+    if (!read_line(CarModel[rec_count], MAX_STR)) { puts("Cancelled."); return; }
+    trim_spaces(CarModel[rec_count]);
+
+    printf("Start Date (YYYY-MM-DD): ");
+    if (!read_line(StartDate[rec_count], MAX_STR)) { puts("Cancelled."); return; }
+    trim_spaces(StartDate[rec_count]);
+
+    rec_count++;
+    puts("Added.");
+}
+
 // Search
+//ค้นหาไม่เจอให้ถามซ้ำว่าค้นต่อหรือออกเมนู ค้นหาบางส่วนของเลข
 static void search_policy(void) {
     for (;;) {
         printf("\n-- Search --\n");
@@ -204,7 +235,11 @@ static void search_policy(void) {
 static void display_menu(void) {
     puts("\n=== Policy Manager ===");
     puts("1) List all data");
-    puts("2) Search");
+    puts("2) Add");
+    puts("3) Search");
+//  puts("4) Update Start Date");
+//  puts("5) Delete");
+//  puts("6) Save to CSV");
     puts("0) Exit");
     printf("Type: ");
 }
@@ -221,6 +256,12 @@ int main(void) {
         switch (choice) {
             case 1: list_all(); break;
             case 2: search_policy(); break;
+//          case 4: update_policy(); break;
+//          case 5: delete_policy(); break;            
+/*          case 6:
+                if (save_csv("policies.csv")) puts("Saved.");
+                else puts("Save failed.");
+                break;*/
             case 0: {
                 char line[16];
                 printf("Exit program? (y/n): ");
@@ -233,3 +274,4 @@ int main(void) {
     }
     return 0;
 }
+
