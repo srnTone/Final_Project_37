@@ -3,8 +3,6 @@
 
 โครงสร้างข้อมูล
 
-เก็บแต่ละคอลัมน์เป็นอาเรย์แบบ parallel arrays
-
 PolicyNumber, OwnerName, CarModel, StartDate (ใช้ฟอร์แมต YYYY-MM-DD)
 
 คอนสแตนด์ที่ใช้
