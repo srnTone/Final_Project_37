@@ -9,22 +9,22 @@
 #define MAX_LINE    1024
 
 // ใช้ฐานข้อมูลแบบ parallel arrays
-static char PolicyNumber[MAX_RECORDS][MAX_STR];
-static char OwnerName  [MAX_RECORDS][MAX_STR];
-static char CarModel   [MAX_RECORDS][MAX_STR];
-static char StartDate  [MAX_RECORDS][MAX_STR];
-static int  rec_count = 0;
+char PolicyNumber[MAX_RECORDS][MAX_STR];
+char OwnerName  [MAX_RECORDS][MAX_STR];
+char CarModel   [MAX_RECORDS][MAX_STR];
+char StartDate  [MAX_RECORDS][MAX_STR];
+int  rec_count = 0;
 
 // ---------------- Utilities ----------------
 
 // ลบ \n และ \r ท้าย string
-static void rstrip(char *s) {
+void rstrip(char *s) {
     size_t n = strlen(s);
     while (n > 0 && (s[n-1] == '\n' || s[n-1] == '\r')) s[--n] = '\0';
 }
 
 // ตัดช่องว่างหัวท้าย 
-static void trim_spaces(char *s) {
+void trim_spaces(char *s) {
     char *start = s;
     while (*start == ' ' || *start == '\t') start++;
     if (start != s) memmove(s, start, strlen(start) + 1);
@@ -34,14 +34,14 @@ static void trim_spaces(char *s) {
 }
 
 // อ่านบรรทัดและตัดปลาย
-static int read_line(char *buf, size_t sz) {
+int read_line(char *buf, size_t sz) {
     if (!fgets(buf, (int)sz, stdin)) return 0;
     rstrip(buf);
     return 1;
 }
 
 // อ่าน int จากบรรทัด
-static int read_int_prompt(const char *prompt, int *out) {
+int read_int_prompt(const char *prompt, int *out) {
     char line[64];
     if (prompt) fputs(prompt, stdout);
     if (!read_line(line, sizeof(line))) return 0;
@@ -51,11 +51,10 @@ static int read_int_prompt(const char *prompt, int *out) {
     return 1;
 }
 
-// ---------- Helpers สำหรับตรวจฟอร์แมต ----------
+// ---------- ตัวช่วยตรวจ format input ใน Add ----------
 
 // PolicyNumber ต้องเป็น: อักษร A-Z 1 ตัว + ตัวเลข 3 ตัว รวม 4 ตัวอักษร
-// อนาคตเปลี่ยน format เป็นตัวอักษรนำกี่ตัวก็ได้ เลขกี่ตัววางยังไงก็ได้
-static int is_valid_policy_number(const char *s) {
+int is_valid_policy_number(const char *s) {
     if (!s) return 0;
     if (strlen(s) != 4) return 0;
     if (!(s[0] >= 'A' && s[0] <= 'Z')) return 0;
@@ -65,7 +64,7 @@ static int is_valid_policy_number(const char *s) {
 
 /* แปลงอินพุตวันที่ที่พิมพ์แบบ "YYYY MM DD" หรือจะคั่นด้วย - ก็ได้ ให้เป็น "YYYY-MM-DD"
     YYYY = ตัวเลข 4 หลักเท่านั้น, MM = 0-12, DD = 1-31 */
-static int format_date_to_yyyy_mm_dd(const char *in, char *out, size_t outsz) {
+int format_date_to_yyyy_mm_dd(const char *in, char *out, size_t outsz) {
     if (!in || !out || outsz == 0) return 0;
 
     // ดึงเลข 3 ชุดแรก (ยอมรับตัวคั่นอะไรก็ได้ที่ไม่ใช่ตัวเลข) 
@@ -100,7 +99,7 @@ static int format_date_to_yyyy_mm_dd(const char *in, char *out, size_t outsz) {
 // ---------------- CSV ----------------
 
 // แยก 1 บรรทัด CSV เป็น 4 ฟิลด์ 
-static int parse_csv_line(char *line, char *p, char *o, char *c, char *d) {
+int parse_csv_line(char *line, char *p, char *o, char *c, char *d) {
     char *tok = strtok(line, ",");
     if (!tok) return 0; strncpy(p, tok, MAX_STR-1); p[MAX_STR-1]='\0'; trim_spaces(p);
 
@@ -116,7 +115,7 @@ static int parse_csv_line(char *line, char *p, char *o, char *c, char *d) {
 }
 
 // Load CSV PolicyNumber,OwnerName,CarModel,StartDate 
-static int load_csv(const char *fname) {
+int load_csv(const char *fname) {
     FILE *f = fopen(fname, "r");
     if (!f) {
         printf("[load_csv] cannot open file: %s\n", fname);
@@ -171,15 +170,15 @@ static int load_csv(const char *fname) {
 // ---------------- Main Options ----------------
 
 // ประกาศโปรโตไทป์
-static int find_index_by_policy(const char *policy) {
+int find_index_by_policy(const char *policy) {
     for (int i = 0; i < rec_count; ++i) {
         if (strcmp(PolicyNumber[i], policy) == 0) return i;
     }
     return -1;
 }
 
-// List All ปรับขนาดแล้ว
-static void list_all(void) {
+// List All
+void list_all(void) {
     printf("\n%-7s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
     printf("-------------------------------------------------------------------------------\n");
     for (int i = 0; i < rec_count; ++i) {
@@ -188,9 +187,9 @@ static void list_all(void) {
     }
 }
 
-// Add ตรวจฟอร์แมต + ลูปถามทำต่อ/กลับเมนูหลัก
+// Add ตรวจฟอร์แมต + ลูปถามทำต่อ/กลับเมนู
 // อนาคตเปลี่ยน format อะไรก็ได้ อังษรเล็กใหญ่นำก่อนแต่กี่ตัวก็ได้ + ตามด้วยเลขกี่ตัวก็ได้ เลข 0 ก่อนเลขอื่นไม่นับ
-static void add_policy(void) {
+void add_policy(void) {
     for (;;) { // วนรอบ session การเพิ่มข้อมูล 
     restart_form:
         if (rec_count >= MAX_RECORDS) { puts("Database is full."); return; }
@@ -252,6 +251,7 @@ static void add_policy(void) {
                 if (!read_line(ans, sizeof(ans))) return;
                 if (ans[0] == '0') return; else goto restart_form;
             }
+            // ฟิลด์นี้ใส่อะไรก็ได้ -> ผ่านเลย 
             break;
         }
 
@@ -278,11 +278,20 @@ static void add_policy(void) {
             break;
         }
 
-        // บันทึกและถามต่อ
+        // บันทึก + แสดงรายการที่เพิ่งเพิ่ม
+        int added_idx = rec_count;   // จด index ปัจจุบันไว้ก่อนเพิ่มตัวนับ
         rec_count++;
-        puts("Added.");
 
-        printf("Add another? (Enter = continue, 0 = back): ");
+        puts("\nAdded.");
+        puts("This is the record just added successfully:");
+        printf("%-12s | %-20s | %-16s | %s\n", "Policy", "Owner", "CarModel", "StartDate");
+        printf("%-12s | %-20s | %-16s | %s\n",
+               PolicyNumber[added_idx],
+               OwnerName[added_idx],
+               CarModel[added_idx],
+               StartDate[added_idx]);
+
+        printf("\nAdd another? (Enter = continue, 0 = back): ");
         {
             char ans[8];
             if (!read_line(ans, sizeof(ans))) return;
@@ -292,8 +301,9 @@ static void add_policy(void) {
 }
 
 // Search 
-//ค้นหาไม่เจอให้ถามซ้ำว่าจะค้นต่อหรือออกเมนู ค้นหาบางส่วนของเลขก็ขึ้นเหมือนชื่อ
-static void search_policy(void) {
+/*ค้นหาไม่เจอให้ถามซ้ำว่าค้นต่อหรือออกเมนู
+ค้นหาบางส่วนของเลขก็ขึ้นเหมือนชื่อ*/
+void search_policy(void) {
     for (;;) {
         printf("\n-- Search --\n");
         printf("1) By Policy Number\n");
@@ -353,9 +363,9 @@ static void search_policy(void) {
     }
 }
 
-// ---------------- Display ----------------
-static void display_menu(void) {
-    puts("\n=== Policy Manager ===");
+// ---------------- Display Menu ----------------
+void display_menu(void) {
+    puts("=== Policy Manager ===");
     puts("1) List all data");
     puts("2) Add");
     puts("3) Search");
