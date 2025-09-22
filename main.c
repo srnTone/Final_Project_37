@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h> //ใช้เพื่อตรวจสอบว่าเป็นตัวเลข isdigits
 
 // จองพื้นที่
 #define MAX_RECORDS 1000
@@ -14,14 +15,15 @@ static char CarModel   [MAX_RECORDS][MAX_STR];
 static char StartDate  [MAX_RECORDS][MAX_STR];
 static int  rec_count = 0;
 
-// Utilities
+// ---------------- Utilities ----------------
+
 // ลบ \n และ \r ท้าย string
 static void rstrip(char *s) {
     size_t n = strlen(s);
     while (n > 0 && (s[n-1] == '\n' || s[n-1] == '\r')) s[--n] = '\0';
 }
 
-// ตัดช่องว่างหัวท้าย
+// ตัดช่องว่างหัวท้าย 
 static void trim_spaces(char *s) {
     char *start = s;
     while (*start == ' ' || *start == '\t') start++;
@@ -38,7 +40,7 @@ static int read_line(char *buf, size_t sz) {
     return 1;
 }
 
-// อ่าน int จากบรรทัด 
+// อ่าน int จากบรรทัด
 static int read_int_prompt(const char *prompt, int *out) {
     char line[64];
     if (prompt) fputs(prompt, stdout);
@@ -46,6 +48,52 @@ static int read_int_prompt(const char *prompt, int *out) {
     char *end; long v = strtol(line, &end, 10);
     if (end == line) return 0;
     *out = (int)v;
+    return 1;
+}
+
+// ---------- Helpers สำหรับตรวจฟอร์แมต ----------
+
+// PolicyNumber ต้องเป็น: อักษร A-Z 1 ตัว + ตัวเลข 3 ตัว รวม 4 ตัวอักษร
+// อนาคตเปลี่ยน format เป็นตัวอักษรนำกี่ตัวก็ได้ เลขกี่ตัววางยังไงก็ได้
+static int is_valid_policy_number(const char *s) {
+    if (!s) return 0;
+    if (strlen(s) != 4) return 0;
+    if (!(s[0] >= 'A' && s[0] <= 'Z')) return 0;
+    for (int i = 1; i < 4; ++i) if (!isdigit((unsigned char)s[i])) return 0;
+    return 1;
+}
+
+/* แปลงอินพุตวันที่ที่พิมพ์แบบ "YYYY MM DD" หรือจะคั่นด้วย - ก็ได้ ให้เป็น "YYYY-MM-DD"
+    YYYY = ตัวเลข 4 หลักเท่านั้น, MM = 0-12, DD = 1-31 */
+static int format_date_to_yyyy_mm_dd(const char *in, char *out, size_t outsz) {
+    if (!in || !out || outsz == 0) return 0;
+
+    // ดึงเลข 3 ชุดแรก (ยอมรับตัวคั่นอะไรก็ได้ที่ไม่ใช่ตัวเลข) 
+    char tmp[MAX_STR];
+    size_t j = 0;
+    int y = -1, m = -1, d = -1;
+    int first_group_digits = 0;
+    int in_digits = 0, first_done = 0;
+    for (size_t i = 0; in[i] && j < sizeof(tmp) - 2; ++i) {
+        unsigned char c = (unsigned char)in[i];
+        if (isdigit(c)) {
+            tmp[j++] = c;
+            if (!first_done) first_group_digits++;
+            in_digits = 1;
+        } else {
+            if (in_digits) { tmp[j++] = ' '; in_digits = 0; first_done = 1; }
+        }
+    }
+    if (in_digits) { tmp[j++] = ' '; }
+    tmp[j] = '\0';
+
+    if (sscanf(tmp, "%d %d %d", &y, &m, &d) != 3) return 0;
+    if (first_group_digits != 4) return 0;            // ต้อง 4 หลักเป๊ะ
+    if (m < 0 || m > 12) return 0;                    // ตามที่กำหนด: 0-12 
+    if (d < 1 || d > 31) return 0;                    // 1-31 (ไม่เช็ควันจริงตามเดือน) 
+
+    /* จัดรูปเก็บเป็น YYYY-MM-DD */
+    snprintf(out, outsz, "%04d-%02d-%02d", y, m, d);
     return 1;
 }
 
@@ -120,7 +168,8 @@ static int load_csv(const char *fname) {
     return 1;
 }
 
-// Main Options
+// ---------------- Main Options ----------------
+
 // ประกาศโปรโตไทป์
 static int find_index_by_policy(const char *policy) {
     for (int i = 0; i < rec_count; ++i) {
@@ -129,7 +178,7 @@ static int find_index_by_policy(const char *policy) {
     return -1;
 }
 
-// List All
+// List All ปรับขนาดแล้ว
 static void list_all(void) {
     printf("\n%-7s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
     printf("-------------------------------------------------------------------------------\n");
@@ -139,38 +188,111 @@ static void list_all(void) {
     }
 }
 
-// Add
-//เหลือเพิ่มต่อหรือออกเลย/ตรวจสอบให้ใส่ข้อมูลตามฟอร์แมต ถ้าไม่ตรงไม่บันทึกหรือออก
+// Add ตรวจฟอร์แมต + ลูปถามทำต่อ/กลับเมนูหลัก
+// อนาคตเปลี่ยน format อะไรก็ได้ อังษรเล็กใหญ่นำก่อนแต่กี่ตัวก็ได้ + ตามด้วยเลขกี่ตัวก็ได้ เลข 0 ก่อนเลขอื่นไม่นับ
 static void add_policy(void) {
-    if (rec_count >= MAX_RECORDS) { puts("Database is full."); return; }
+    for (;;) { // วนรอบ session การเพิ่มข้อมูล 
+    restart_form:
+        if (rec_count >= MAX_RECORDS) { puts("Database is full."); return; }
 
-    char buf[MAX_STR];
+        //1) PolicyNumber
+        for (;;) {
+            char buf[MAX_STR];
+            printf("\nAdd new\nPolicy Number (A###)\n[0=cancel]\n: ");
+            if (!read_line(buf, sizeof(buf))) { puts("Cancelled."); return; }
+            trim_spaces(buf);
 
-    printf("\nAdd new\nPolicy Number: ");
-    if (!read_line(buf, sizeof(buf))) { puts("Cancelled."); return; }
-    trim_spaces(buf);
-    if (buf[0] == '\0') { puts("Cancelled."); return; }
-    if (find_index_by_policy(buf) != -1) { puts("This insurance number ALREADY EXISTS."); return; }
-    strncpy(PolicyNumber[rec_count], buf, MAX_STR-1); PolicyNumber[rec_count][MAX_STR-1]='\0';
+            if (strcmp(buf, "0") == 0) {
+                // เลือกว่าจะเริ่มกรอกใหม่ทั้งฟอร์มหรือกลับเมนู 
+                char ans[8];
+                printf("Cancel this Add?\n(Enter = restart Add, 0 = back to menu): ");
+                if (!read_line(ans, sizeof(ans))) return;
+                if (ans[0] == '0') return;  // กลับเมนูหลัก 
+                else goto restart_form;     // เริ่มฟอร์มใหม่ 
+            }
 
-    printf("OwnerName: ");
-    if (!read_line(OwnerName[rec_count], MAX_STR)) { puts("Cancelled."); return; }
-    trim_spaces(OwnerName[rec_count]);
+            if (!is_valid_policy_number(buf)) {
+                puts("Invalid Policy Number. Must be 1 uppercase letter + 3 digits (e.g., A123).");
+                continue; // แจ้งแล้วให้กรอกใหม่ทันที 
+            }
+            if (find_index_by_policy(buf) != -1) {
+                puts("This insurance number ALREADY EXISTS.");
+                continue; // ซ้ำ -> แจ้งแล้วให้กรอกใหม่ทันที 
+            }
 
-    printf("CarModel: ");
-    if (!read_line(CarModel[rec_count], MAX_STR)) { puts("Cancelled."); return; }
-    trim_spaces(CarModel[rec_count]);
+            strncpy(PolicyNumber[rec_count], buf, MAX_STR-1);
+            PolicyNumber[rec_count][MAX_STR-1] = '\0';
+            break; // ออกไปกรอกฟิลด์ถัดไป 
+        }
 
-    printf("Start Date (YYYY-MM-DD): ");
-    if (!read_line(StartDate[rec_count], MAX_STR)) { puts("Cancelled."); return; }
-    trim_spaces(StartDate[rec_count]);
+        //2) OwnerName
+        for (;;) {
+            printf("\nOwnerName\n[0=cancel]\n: ");
+            if (!read_line(OwnerName[rec_count], MAX_STR)) { puts("Cancelled."); return; }
+            trim_spaces(OwnerName[rec_count]);
 
-    rec_count++;
-    puts("Added.");
+            if (strcmp(OwnerName[rec_count], "0") == 0) {
+                char ans[8];
+                printf("Cancel this Add? (Enter = restart Add, 0 = back to menu): ");
+                if (!read_line(ans, sizeof(ans))) return;
+                if (ans[0] == '0') return; else goto restart_form;
+            }
+            break;
+        }
+
+        // 3) CarModel
+        for (;;) {
+            printf("\nCarModel\n[0=cancel]\n: ");
+            if (!read_line(CarModel[rec_count], MAX_STR)) { puts("Cancelled."); return; }
+            trim_spaces(CarModel[rec_count]);
+
+            if (strcmp(CarModel[rec_count], "0") == 0) {
+                char ans[8];
+                printf("Cancel this Add? (Enter = restart Add, 0 = back to menu): ");
+                if (!read_line(ans, sizeof(ans))) return;
+                if (ans[0] == '0') return; else goto restart_form;
+            }
+            break;
+        }
+
+        // 4) StartDate
+        for (;;) {
+            char date_in[MAX_STR], date_fmt[MAX_STR];
+            printf("\nStart Date [type: YYYY MM DD]\n[0=cancel]\n: ");
+            if (!read_line(date_in, sizeof(date_in))) { puts("Cancelled."); return; }
+            trim_spaces(date_in);
+
+            if (strcmp(date_in, "0") == 0) {
+                char ans[8];
+                printf("Cancel this Add? (Enter = restart Add, 0 = back to menu): ");
+                if (!read_line(ans, sizeof(ans))) return;
+                if (ans[0] == '0') return; else goto restart_form;
+            }
+            if (!format_date_to_yyyy_mm_dd(date_in, date_fmt, sizeof(date_fmt))) {
+                puts("Invalid date. Use: YYYY MM DD  (Year = 4 digits, Month = 0-12, Day = 1-31).");
+                continue; // แจ้งแล้วให้กรอกวันใหม่ทันที 
+            }
+
+            strncpy(StartDate[rec_count], date_fmt, MAX_STR-1);
+            StartDate[rec_count][MAX_STR-1] = '\0';
+            break;
+        }
+
+        // บันทึกและถามต่อ
+        rec_count++;
+        puts("Added.");
+
+        printf("Add another? (Enter = continue, 0 = back): ");
+        {
+            char ans[8];
+            if (!read_line(ans, sizeof(ans))) return;
+            if (ans[0] == '0') return;
+        }
+    }
 }
 
-// Search
-//ค้นหาไม่เจอให้ถามซ้ำว่าค้นต่อหรือออกเมนู ค้นหาบางส่วนของเลข
+// Search 
+//ค้นหาไม่เจอให้ถามซ้ำว่าจะค้นต่อหรือออกเมนู ค้นหาบางส่วนของเลขก็ขึ้นเหมือนชื่อ
 static void search_policy(void) {
     for (;;) {
         printf("\n-- Search --\n");
@@ -221,8 +343,8 @@ static void search_policy(void) {
                 }
             }
             if (!found) puts("Not found.");
-
-            printf("Continue searching? (Enter = continue, 0 = back): ");
+            // ถามว่าจะเพิ่มต่อหรือกลับเมนูหลัก
+            printf("Continue searching? (Enter = continue, 0 = back to menu): ");
             char ans[8]; if (!read_line(ans, sizeof(ans))) return;
             if (ans[0] == '0') return;
         } else {
@@ -231,20 +353,20 @@ static void search_policy(void) {
     }
 }
 
-// Display
+// ---------------- Display ----------------
 static void display_menu(void) {
     puts("\n=== Policy Manager ===");
     puts("1) List all data");
     puts("2) Add");
     puts("3) Search");
-//  puts("4) Update Start Date");
-//  puts("5) Delete");
-//  puts("6) Save to CSV");
+//    puts("4) Update Start Date");
+//    puts("5) Delete");
+//    puts("6) Save to CSV");
     puts("0) Exit");
     printf("Type: ");
 }
 
-// UI
+// ---------------- UI ----------------
 int main(void) {
     load_csv("policies.csv");
 
@@ -255,10 +377,11 @@ int main(void) {
 
         switch (choice) {
             case 1: list_all(); break;
-            case 2: search_policy(); break;
-//          case 4: update_policy(); break;
-//          case 5: delete_policy(); break;            
-/*          case 6:
+            case 2: add_policy(); break;
+            case 3: search_policy(); break;
+//            case 4: update_policy(); break;
+//            case 5: delete_policy(); break;            
+/*            case 6:
                 if (save_csv("policies.csv")) puts("Saved.");
                 else puts("Save failed.");
                 break;*/
@@ -274,4 +397,3 @@ int main(void) {
     }
     return 0;
 }
-
