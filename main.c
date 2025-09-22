@@ -3,20 +3,18 @@
 #include <stdlib.h>
 #include <ctype.h> //ใช้เพื่อตรวจสอบว่าเป็นตัวเลข isdigits
 
-// จองพื้นที่
-#define MAX_RECORDS 1000
-#define MAX_STR     64
-#define MAX_LINE    1024
+#define MAX_RECORDS 1000 // เก็บได้สูงสุด 1000 เรคคอร์ด
+#define MAX_STR     64   // ความยาวสตริงต่อฟิลด์ (รวม '\0')
+#define MAX_LINE    1024 // บัฟเฟอร์อ่าน 1 บรรทัดจากไฟล์ CSV
 
 // ใช้ฐานข้อมูลแบบ parallel arrays
 char PolicyNumber[MAX_RECORDS][MAX_STR];
-char OwnerName  [MAX_RECORDS][MAX_STR];
-char CarModel   [MAX_RECORDS][MAX_STR];
-char StartDate  [MAX_RECORDS][MAX_STR];
+char OwnerName   [MAX_RECORDS][MAX_STR];
+char CarModel    [MAX_RECORDS][MAX_STR];
+char StartDate   [MAX_RECORDS][MAX_STR];
 int  rec_count = 0;
 
-// ---------------- Utilities ----------------
-
+// --------------------- Utilities ---------------------
 // ลบ \n และ \r ท้าย string
 void rstrip(char *s) {
     size_t n = strlen(s);
@@ -51,8 +49,7 @@ int read_int_prompt(const char *prompt, int *out) {
     return 1;
 }
 
-// ---------- ตัวช่วยตรวจ format input ใน Add ----------
-
+// ----------- ตัวช่วยตรวจ format input ใน Add -----------
 // PolicyNumber ต้องเป็น: อักษร A-Z 1 ตัว + ตัวเลข 3 ตัว รวม 4 ตัวอักษร
 int is_valid_policy_number(const char *s) {
     if (!s) return 0;
@@ -67,7 +64,7 @@ int is_valid_policy_number(const char *s) {
 int format_date_to_yyyy_mm_dd(const char *in, char *out, size_t outsz) {
     if (!in || !out || outsz == 0) return 0;
 
-    // ดึงเลข 3 ชุดแรก (ยอมรับตัวคั่นอะไรก็ได้ที่ไม่ใช่ตัวเลข) 
+    // ดึงเลข 3 ชุดแรก ยอมรับตัวคั่นอะไรก็ได้ที่ไม่ใช่ตัวเลข
     char tmp[MAX_STR];
     size_t j = 0;
     int y = -1, m = -1, d = -1;
@@ -96,8 +93,7 @@ int format_date_to_yyyy_mm_dd(const char *in, char *out, size_t outsz) {
     return 1;
 }
 
-// ---------------- CSV ----------------
-
+// ------------------------ CSV ------------------------
 // แยก 1 บรรทัด CSV เป็น 4 ฟิลด์ 
 int parse_csv_line(char *line, char *p, char *o, char *c, char *d) {
     char *tok = strtok(line, ",");
@@ -167,8 +163,7 @@ int load_csv(const char *fname) {
     return 1;
 }
 
-// ---------------- Main Options ----------------
-
+// ------------------- Main Options --------------------
 // ประกาศโปรโตไทป์
 int find_index_by_policy(const char *policy) {
     for (int i = 0; i < rec_count; ++i) {
@@ -179,16 +174,16 @@ int find_index_by_policy(const char *policy) {
 
 // List All
 void list_all(void) {
-    printf("\n%-7s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
+    printf("\n%-12s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
     printf("-------------------------------------------------------------------------------\n");
     for (int i = 0; i < rec_count; ++i) {
-        printf("%-7s | %-20s | %-20s | %-10s\n",
+        printf("%-12s | %-20s | %-20s | %-10s\n",
                PolicyNumber[i], OwnerName[i], CarModel[i], StartDate[i]);
     }
 }
 
-// Add ตรวจฟอร์แมต + ลูปถามทำต่อ/กลับเมนู
-// อนาคตเปลี่ยน format อะไรก็ได้ อังษรเล็กใหญ่นำก่อนแต่กี่ตัวก็ได้ + ตามด้วยเลขกี่ตัวก็ได้ เลข 0 ก่อนเลขอื่นไม่นับ
+// Add 
+// input ตรวจฟอร์แมต + ลูปถามทำต่อ/เลือกกลับเมนู
 void add_policy(void) {
     for (;;) { // วนรอบ session การเพิ่มข้อมูล 
     restart_form:
@@ -197,7 +192,7 @@ void add_policy(void) {
         //1) PolicyNumber
         for (;;) {
             char buf[MAX_STR];
-            printf("\nAdd new\nPolicy Number (A###)\n[0=cancel]\n: ");
+            printf("\n----- Add new -----\nPolicy Number (A###) [0=cancel]\n: ");
             if (!read_line(buf, sizeof(buf))) { puts("Cancelled."); return; }
             trim_spaces(buf);
 
@@ -226,7 +221,7 @@ void add_policy(void) {
 
         //2) OwnerName
         for (;;) {
-            printf("\nOwnerName\n[0=cancel]\n: ");
+            printf("\nOwnerName [0=cancel]\n: ");
             if (!read_line(OwnerName[rec_count], MAX_STR)) { puts("Cancelled."); return; }
             trim_spaces(OwnerName[rec_count]);
 
@@ -241,7 +236,7 @@ void add_policy(void) {
 
         // 3) CarModel
         for (;;) {
-            printf("\nCarModel\n[0=cancel]\n: ");
+            printf("\nCarModel [0=cancel]\n: ");
             if (!read_line(CarModel[rec_count], MAX_STR)) { puts("Cancelled."); return; }
             trim_spaces(CarModel[rec_count]);
 
@@ -251,14 +246,13 @@ void add_policy(void) {
                 if (!read_line(ans, sizeof(ans))) return;
                 if (ans[0] == '0') return; else goto restart_form;
             }
-            // ฟิลด์นี้ใส่อะไรก็ได้ -> ผ่านเลย 
             break;
         }
 
         // 4) StartDate
         for (;;) {
             char date_in[MAX_STR], date_fmt[MAX_STR];
-            printf("\nStart Date [type: YYYY MM DD]\n[0=cancel]\n: ");
+            printf("\nStart Date [type: YYYY MM DD] [0=cancel]\n: ");
             if (!read_line(date_in, sizeof(date_in))) { puts("Cancelled."); return; }
             trim_spaces(date_in);
 
@@ -284,7 +278,8 @@ void add_policy(void) {
 
         puts("\nAdded.");
         puts("This is the record just added successfully:");
-        printf("%-12s | %-20s | %-16s | %s\n", "Policy", "Owner", "CarModel", "StartDate");
+        printf("\n%-12s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
+        printf("-------------------------------------------------------------------------------\n");
         printf("%-12s | %-20s | %-16s | %s\n",
                PolicyNumber[added_idx],
                OwnerName[added_idx],
@@ -301,71 +296,80 @@ void add_policy(void) {
 }
 
 // Search 
-/*ค้นหาไม่เจอให้ถามซ้ำว่าค้นต่อหรือออกเมนู
-ค้นหาบางส่วนของเลขก็ขึ้นเหมือนชื่อ*/
+// ค้นหาจากบางส่วนจากเลขกรมธรรม์หรือชื่อ เลือกหาต่อหรือเปลี่ยนโหมด
 void search_policy(void) {
     for (;;) {
-        printf("\n-- Search --\n");
+        printf("\n------ Search ------\n");
         printf("1) By Policy Number\n");
-        printf("2) By Owner Name (substring)\n");
+        printf("2) By Owner Name\n");
         printf("0) Back to Menu\n");
         printf("Type: ");
 
         char line[32];
         int mode = -1;
         if (!fgets(line, sizeof(line), stdin)) return;
-        sscanf(line, "%d", &mode);
+        sscanf(line, "%d", &mode);  // ไม่ต้องมี \n
 
         if (mode == 0) return;
+
         else if (mode == 1) {
-            char key[MAX_STR];
-            printf("Policy Number to search: ");
-            if (!read_line(key, sizeof(key))) return;
-            trim_spaces(key);
+            //ค้นหาเลขกรมธรรม์บางส่วนและอยู่ต่อ
+            for (;;) {
+                char key[MAX_STR];
+                printf("\nPolicy number keyword [0 = back]: ");
+                if (!read_line(key, sizeof(key))) return;
+                trim_spaces(key);
+                if (strcmp(key, "0") == 0) break;              // กลับไปหน้าเลือกโหมด
+                if (key[0] == '\0') { puts("Empty keyword."); continue; }
 
-            int idx = find_index_by_policy(key);
-            if (idx == -1) {
-                puts("Not found.");
-                printf("Continue searching? (Enter = continue, 0 = back): ");
-                char ans[8]; if (!read_line(ans, sizeof(ans))) return;
-                if (ans[0] == '0') return;
-                continue;
-            } else {
-                printf("Found: %s | %s | %s | %s\n",
-                       PolicyNumber[idx], OwnerName[idx], CarModel[idx], StartDate[idx]);
-                printf("Continue searching? (Enter = continue, 0 = back): ");
-                char ans[8]; if (!read_line(ans, sizeof(ans))) return;
-                if (ans[0] == '0') return;
-            }
-        } else if (mode == 2) {
-            char key[MAX_STR];
-            printf("Owner name keyword: ");
-            if (!read_line(key, sizeof(key))) return;
-            trim_spaces(key);
-            if (key[0] == '\0') { puts("Empty keyword."); continue; }
-
-            int found = 0;
-            for (int i = 0; i < rec_count; ++i) {
-                if (strstr(OwnerName[i], key)) {
-                    printf("%s | %s | %s | %s\n",
-                           PolicyNumber[i], OwnerName[i], CarModel[i], StartDate[i]);
-                    found = 1;
+                int found = 0;
+                printf("\n%-12s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
+                printf("-------------------------------------------------------------------------------\n");
+                for (int i = 0; i < rec_count; ++i) {
+                    if (strstr(PolicyNumber[i], key)) {       // ค้นบางส่วน
+                        printf("%-12s | %-20s | %-20s | %-10s\n",
+                               PolicyNumber[i], OwnerName[i], CarModel[i], StartDate[i]);
+                        found = 1;
+                    }
                 }
+                if (!found) puts("Not found.");
+                // ไม่ถามยืนยัน—วนให้พิมพ์คำค้นใหม่ได้ทันที
             }
-            if (!found) puts("Not found.");
-            // ถามว่าจะเพิ่มต่อหรือกลับเมนูหลัก
-            printf("Continue searching? (Enter = continue, 0 = back to menu): ");
-            char ans[8]; if (!read_line(ans, sizeof(ans))) return;
-            if (ans[0] == '0') return;
-        } else {
+        }
+
+        else if (mode == 2) {
+            // ค้นหาชื่อแบบบางส่วนและอยู่ต่อ
+            for (;;) {
+                char key[MAX_STR];
+                printf("\nOwner name keyword [0 = back]: ");
+                if (!read_line(key, sizeof(key))) return;
+                trim_spaces(key);
+                if (strcmp(key, "0") == 0) break;              // กลับไปหน้าเลือกโหมด
+                if (key[0] == '\0') { puts("Empty keyword."); continue; }
+
+                int found = 0;
+                printf("\n%-12s | %-20s | %-20s | %-10s\n", "Policy", "Owner", "CarModel", "StartDate");
+                printf("-------------------------------------------------------------------------------\n");
+                for (int i = 0; i < rec_count; ++i){
+                    if (strstr(OwnerName[i], key)) {
+                        printf("%-12s | %-20s | %-20s | %-10s\n",
+                               PolicyNumber[i], OwnerName[i], CarModel[i], StartDate[i]);
+                        found = 1;
+                    }
+                }
+                if (!found) puts("Not found.");
+            }
+        }
+
+        else {
             puts("Wrong mode.");
         }
     }
 }
 
-// ---------------- Display Menu ----------------
+// ------------------- Display Menu -------------------
 void display_menu(void) {
-    puts("=== Policy Manager ===");
+    puts("\n=== Policy Manager ===");
     puts("1) List all data");
     puts("2) Add");
     puts("3) Search");
@@ -376,7 +380,7 @@ void display_menu(void) {
     printf("Type: ");
 }
 
-// ---------------- UI ----------------
+// ------------------------ UI ------------------------
 int main(void) {
     load_csv("policies.csv");
 
