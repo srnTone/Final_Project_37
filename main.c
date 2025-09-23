@@ -18,7 +18,7 @@ int  recCount = 0;
 /* =========================================================================
    SECTION: HELPERS
    - rtrim_newline (ลบ \n \r ข้างหลัง), trim_spaces (ลบช่องว่างหน้าหลัง), toLowerStr (เปลี่ยน string เป็นพิมพ์เล็ก), 
-   containsIgnoreCase (ค้นหาแบบโดยไม่สนตัวพิมพ์ใหฐ่หรือเล็ก)
+    containsIgnoreCase (ค้นหาแบบโดยไม่สนตัวพิมพ์ใหฐ่หรือเล็ก)
    - findPolicyExact, normalizePolicy, parseAndFormatDate
    - printHeader, printRecord
    ======================================================================== */
@@ -327,6 +327,7 @@ void searchMode() {
         printf("\n------ Search ------\n");
         printf("1) By policy number\n");
         printf("2) By owner name\n");
+        printf("3) By car model\n");
         printf("0) Back to main menu\n");
         printf("Choice: ");
         if (scanf("%d", &choice) != 1) {
@@ -357,7 +358,7 @@ void searchMode() {
             while (1) {
                 char key[STRLEN];
                 int i, found = 0;
-                printf("\nOwner name (0 =Back): ");
+                printf("\nOwner name (0=Back): ");
                 if (scanf(" %63[^\n]", key) != 1) return;
                 if (strcmp(key, "0") == 0) break;
                 printHeader();
@@ -369,7 +370,24 @@ void searchMode() {
                 }
                 if (!found) printf("(No results.)\n");
             }
-        } else {
+        } else if (choice == 3) {
+            while (1) {
+                char key[STRLEN];
+                int i, found = 0;
+                printf("\nCar model (0=Back): ");
+                if (scanf(" %63[^\n]", key) != 1) return;
+                if (strcmp(key, "0") == 0) break;
+                printHeader();
+                for (i = 0; i < recCount; i++){
+                    if (containsIgnoreCase(carModel[i], key)){
+                        printRecord(i);
+                        found = 1;
+                    }
+                }
+                if (!found) printf("(No results.)\n");
+            }
+        }
+        else {
             printf("Invalid choice. Please try again.\n");
         }
     }
