@@ -1,17 +1,20 @@
 # Final_Project37
 ระบบจัดการข้อมูลการประกันภัยรถยนต์
 
+/* FILE: main.c
+   FEATURES:
+   - List / Add / Search
+   - Auto-load CSV at startup; Auto-save CSV after Add
+   LAYOUT:
+   1) DATA
+   2) HELPERS
+   3) CSV I/O
+   4) MAIN OPTIONS (UI/Flow)
+   5) PROGRAM ENTRY (main)
+*/
 โครงสร้างข้อมูล
 
 PolicyNumber, OwnerName, CarModel, StartDate (ใช้ฟอร์แมต YYYY-MM-DD)
-
-คอนสแตนด์ที่ใช้
-
-#define MAX_RECORDS 1000
-
-#define MAX_STR 64
-
-#define MAX_LINE    1024
 
 ฟีเจอร์ที่ต้องมี
 
