@@ -2,15 +2,20 @@
 #include <string.h>
 #include <ctype.h>
 
+// ค่าคงที่หลักโปรแกรม
 #define MAX_RECORDS 200
 #define STRLEN 64
 
+// MAX_RECORDS: จำนวนเรคคอร์ดสูงสุดที่รองรับ
+// STRLEN     : ความยาวสตริงสูงสุดของแต่ละฟิลด์
 char policyNumber[MAX_RECORDS][STRLEN];
 char ownerName   [MAX_RECORDS][STRLEN];
 char carModel    [MAX_RECORDS][STRLEN];
 char startDate   [MAX_RECORDS][STRLEN];
 int  recCount = 0;
 
+// ฟังก์ชันช่วยจัดการสตริงพื้นฐาน
+// ลบ \n/\r ที่ท้ายสตริง (ใช้หลัง fgets)
 void rtrim_newline(char *s) { 
     int n = (int)strlen(s);
     while (n > 0 && (s[n-1] == '\n' || s[n-1] == '\r')) {
@@ -18,7 +23,7 @@ void rtrim_newline(char *s) {
         n--;
     }
 }
-
+// ตัดช่องว่างหัว-ท้ายสตริง
 void trim_spaces(char *s) {
     int i = 0, j, start = 0, end;
     while (s[i] == ' ' || s[i] == '\t') i++;
@@ -30,7 +35,7 @@ void trim_spaces(char *s) {
     }
     s[end - start + 1] = '\0';
 }
-
+// คัดลอก src -> dst พร้อมแปลงเป็นตัวพิมพ์เล็ก
 void toLowerStr(const char *src, char *dst) {
     int i = 0;
     while (src[i] != '\0' && i < STRLEN - 1) {
@@ -39,7 +44,7 @@ void toLowerStr(const char *src, char *dst) {
     }
     dst[i] = '\0';
 }
- 
+// คืนค่า 1 ถ้า s มี key (ไม่สนตัวพิมพ์), ไม่งั้น 0
 int containsIgnoreCase(const char *s, const char *key) { 
     char s2[STRLEN], k2[STRLEN];
     toLowerStr(s, s2);
@@ -48,7 +53,8 @@ int containsIgnoreCase(const char *s, const char *key) {
     return strstr(s2, k2) != NULL;
 }
 
-// [POLICY] เช็คซ้ำ -> ยกเลิกถ้า findPolicyExact(num_norm) != -1
+/* ค้นหาว่ามีเลขนี้แล้วหรือไม่
+   คืนค่า index ถ้าพบ, -1 ถ้าไม่พบ (ใช้กันข้อมูลซ้ำ) */
 int findPolicyExact(const char *num) {
     int i;
     for (i = 0; i < recCount; i++) {
@@ -59,26 +65,28 @@ int findPolicyExact(const char *num) {
     return -1; // not found
 }
 
-// [POLICY] normalize & validate -> ensure [A-Z][000-999], auto pad -> P023
+/* ปรับเลขประกันให้เป็นรูปแบบมาตรฐาน
+   รูปแบบที่รับ: ตัวอักษร 1 ตัว + ตัวเลข 1-3 หลัก (เช่น P23)
+   ผลลัพธ์: แปลงเป็น ตัวอักษร + เลข 3 หลัก (เช่น P023)
+   คืนค่า 1 ถ้าถูกต้อง, 0 ถ้าไม่ถูกต้อง */
 int normalizePolicy(const char *in, char *out) {
     char c = '\0';
     int num = -1;
     int i = 0;
     char buf[STRLEN];
 
-    // copy input to buffer
     strncpy(buf, in, STRLEN - 1);
     buf[STRLEN - 1] = '\0';
     trim_spaces(buf);
     if (buf[0] == '\0') return 0;
 
-    // input ต้องเป็น A-Z
+    // ตรวจว่าตัวแรกเป็นตัวอักษร A-Z
     c = (char)toupper((unsigned char)buf[0]); 
     if (!(c >= 'A' && c <= 'Z')) return 0;
 
     i = 1;
     if (buf[i] == '\0') return 0;
-    // อนุญาต 1-3 digits, เต็มที่ 000-999 
+    // อ่านตัวเลข 1-3 หลัก แล้วเช็คช่วง 0-999
     {
         int dcount = 0;
         int n = 0;
@@ -93,27 +101,28 @@ int normalizePolicy(const char *in, char *out) {
         if (n < 0 || n > 999) return 0;
         num = n;
     }
-
+    // จัดรูปแบบเป็น %c%03d
     sprintf(out, "%c%03d", c, num);
     return 1;
 }
 
-// [DATE] รับ format -> ยอมรับแค่ "YYYY M D" หรือ "YYYY-M-D", แปลงเป็น "YYYY-MM-DD"
+/* แปลงวันที่ให้เป็นรูปแบบ YYYY-MM-DD
+   อินพุต: "YYYY M D" หรือ "YYYY-M-D" (เช่น 2025 5 5 หรือ 2025-5-5)
+   ตรวจช่วงปี/เดือน/วันแบบพื้นฐาน แล้วจัดรูปแบบเป็นสองหลัก */
 int parseAndFormatDate(const char *in, char *out) {
     char buf[STRLEN];
     int y = 0, m = 0, d = 0;
     int i;
 
-    // copy input to buffer
     strncpy(buf, in, STRLEN - 1); 
     buf[STRLEN - 1] = '\0';
     trim_spaces(buf);
 
-    // แทนที่ - ด้วย space
+    // แทนที่ '-' เป็นช่องว่าง เพื่อง่ายต่อ sscanf
     for (i = 0; buf[i] != '\0'; i++) {  
         if (buf[i] == '-') buf[i] = ' ';
     }
-    // format input to YYYY-MM-DD
+    // ตรวจช่วงค่า (ปี 1-9999, เดือน 1-12, วัน 1-31)
     if (sscanf(buf, "%d %d %d", &y, &m, &d) != 3) return 0; 
     if (y < 1 || y > 9999) return 0;
     if (m < 1 || m > 12) return 0;
@@ -123,7 +132,9 @@ int parseAndFormatDate(const char *in, char *out) {
     return 1;
 }
 
-// ==== NEW: helper to detect header-like rows ====
+/* จัดการแถวที่ดูเหมือน header
+   - isHeaderLikeRow: เช็คชื่อคอลัมน์
+   - purgeHeaderRows: ลบแถว header ออกจากหน่วยความจำและจัดอาเรย์ */
 int isHeaderLikeRow(const char *p1, const char *p2, const char *p3, const char *p4) {
     return (strcmp(p1, "PolicyNumber") == 0) ||
            (strcmp(p2, "OwnerName")   == 0) ||
@@ -131,14 +142,19 @@ int isHeaderLikeRow(const char *p1, const char *p2, const char *p3, const char *
            (strcmp(p4, "StartDate")   == 0);
 }
 
-// ==== NEW: purge header-like rows from memory ====
+/* โหลดข้อมูลจากไฟล์ CSV
+   ขั้นตอน:
+   1) ข้าม header ถ้ามี
+   2) อ่านทีละบรรทัดแยกฟิลด์ด้วย ','
+   3) ข้ามแถวที่เป็น header/ไม่ครบ/ซ้ำ
+   4) เพิ่มลงฐานข้อมูล และนับจำนวนแถวที่โหลดสำเร็จ */
 void purgeHeaderRows(void) {
     int i, j = 0;
     for (i = 0; i < recCount; ++i) {
         if (isHeaderLikeRow(policyNumber[i], ownerName[i], carModel[i], startDate[i])) {
-            continue; // skip header-looking row
+            continue;
         }
-        if (j != i) {
+        if (j != i) { 
             strncpy(policyNumber[j], policyNumber[i], STRLEN);
             strncpy(ownerName[j],    ownerName[i],    STRLEN);
             strncpy(carModel[j],     carModel[i],     STRLEN);
@@ -174,7 +190,7 @@ int loadFromCSVFile(const char *filename) {
         printf("Empty file: %s\n", filename);
         return 0;
     }
-
+    // แยกฟิลด์ 4 ช่อง: PolicyNumber, OwnerName, CarModel, StartDate
     while (fgets(line, sizeof(line), fp)) {
         char *p1, *p2, *p3, *p4;
         rtrim_newline(line);
@@ -188,7 +204,7 @@ int loadFromCSVFile(const char *filename) {
         if (!p1 || !p2 || !p3 || !p4) continue;
         if (recCount >= MAX_RECORDS) { printf("Database full. Some rows were not loaded.\n"); break; }
 
-        // Skip any row that looks like a header (defensive)
+        // ข้ามถ้าซ้ำหรือเป็น header
         if (strcmp(p1, "PolicyNumber") == 0 || strcmp(p2, "OwnerName") == 0 ||
             strcmp(p3, "CarModel") == 0 || strcmp(p4, "StartDate") == 0) {
             continue;
@@ -213,12 +229,14 @@ int loadFromCSVFile(const char *filename) {
     fclose(fp);
     printf("Loaded %d record(s) from %s\n", loaded, filename);
 
-    // หลังโหลด ลบ header-like row ที่อาจเล็ดรอดเข้ามา
+    // หลังโหลด ลบheader-like row ที่อาจเล็ดรอดเข้ามา
     purgeHeaderRows();
 
     return loaded;
 }
 
+/* บันทึกข้อมูลลงไฟล์ CSV
+   เขียนหัวตารางก่อน แล้ววนเขียนแต่ละเรคคอร์ด */
 void saveToCSVFile(const char *filename) {
     FILE *fp = fopen(filename, "w");
     int i;
@@ -235,18 +253,21 @@ void saveToCSVFile(const char *filename) {
     printf("Saved to %s successfully\n", filename);
 }
 
-// print header
-void printHeader() {
+/* ส่วนแสดงผล 1 แถว และหัวตาราง เพื่อให้รูปแบบสม่ำเสมอ */
+void printHeader() { // printHeader: พิมพ์หัวคอลัมน์และเส้นคั่น
     printf("\n%-14s | %-20s | %-20s | %-10s\n", "PolicyNumber", "OwnerName", "CarModel", "StartDate");
     printf("---------------+----------------------+----------------------+------------\n");
 }
-// print record จาก array
-void printRecord(int i) { 
+/* ส่วนแสดงผล 1 แถว และหัวตาราง เพื่อให้รูปแบบสม่ำเสมอ */
+void printRecord(int i) { // printRecord: พิมพ์ 1 เรคคอร์ดตามคอลัมน์
     printf("%-14s | %-20s | %-20s | %-10s\n",
            policyNumber[i], ownerName[i], carModel[i], startDate[i]);
 }
 
-// list all 
+/* แสดงข้อมูลทั้งหมดในระบบ
+   - ลบแถว header ออกจากหน่วยความจำ
+   - พิมพ์หัวตาราง + ทุกรายการ
+   - สรุปจำนวนทั้งหมดท้ายตาราง */ 
 void listAll() { 
     int i;
     if (recCount == 0) {
@@ -265,7 +286,14 @@ void listAll() {
     printf("Total policies: %d\n", recCount);
 }
 
-// Add mode
+/* โหมดเพิ่มข้อมูล (Add)
+   ลำดับ:
+   1) รับเลขกรมธรรม์ -> ตรวจรูปแบบ/กันข้อมูลซ้ำ
+   2) รับชื่อเจ้าของ (0=Back)
+   3) รับรุ่นรถ (0=Back)
+   4) รับวันที่เริ่ม -> แปลงเป็น YYYY-MM-DD
+   5) เพิ่มลงฐานข้อมูล, บันทึก CSV อัตโนมัติ
+   6) ถามต่อด้วย (y/n) จนกว่าจะตอบถูกฟอร์แมต */
 void addMode() {
     while (1) {
         char num_in[STRLEN], num_norm[STRLEN];
@@ -284,11 +312,11 @@ void addMode() {
             if (scanf(" %63[^\n]", num_in) != 1) return;
             if (strcmp(num_in, "0") == 0) return;
 
-            if (!normalizePolicy(num_in, num_norm)) {
+            if (!normalizePolicy(num_in, num_norm)) { // ถ้า normalizePolicy ไม่ผ่าน ให้แจ้งและถามใหม่
                 printf("Invalid format. Use one uppercase letter + 3 digits, e.g., P023.\n");
                 continue;
             }
-            if (findPolicyExact(num_norm) != -1) {
+            if (findPolicyExact(num_norm) != -1) { // ถ้าพบซ้ำด้วย findPolicyExact ให้แจ้งและถามใหม่
                 printf("Duplicate policy number (%s). Use a different one.\n", num_norm);
                 continue;
             }
@@ -309,14 +337,14 @@ void addMode() {
             printf("Enter start date (YYYY-MM-DD) (0=Back)\n: ");
             if (scanf(" %63[^\n]", date_in) != 1) return;
             if (strcmp(date_in, "0") == 0) return;
-            if (!parseAndFormatDate(date_in, date_fmt)) {
+            if (!parseAndFormatDate(date_in, date_fmt)) { // parseAndFormatDate ไม่ผ่าน ให้แจ้งและถามใหม่
                 printf("Invalid date. YYYY-MM-DD Example: 2025 5 5 or 2025-5-5\n");
                 continue;
             }
             break;
         }
 
-        // [SAVE] to memory arrays -> policyNumber[..], ownerName[..], ...
+        // Save to memory arrays 
         strncpy(policyNumber[recCount], num_norm, STRLEN - 1);
         policyNumber[recCount][STRLEN - 1] = '\0';
         strncpy(ownerName[recCount], name, STRLEN - 1);
@@ -329,17 +357,17 @@ void addMode() {
         recCount++;
         printf("Added! (%s)\n", num_norm);
 
-        // [AUTO-SAVE CSV] saveToCSVFile("policies.csv") immediately after success
+        // บันทึกอัตโนมัติหลังเพิ่มสำเร็จ
         saveToCSVFile("policies.csv");
 
-        // Ask to add more
+        // วนถาม "Add more? (y/n)" รับเฉพาะ y/n เท่านั้น
         {
             for (;;) {
                 char ans[8];
-                printf("\nAdd more? (y/n): ");
+                printf("\nAdd more? (y/n): "); 
                 if (scanf(" %7s", ans) != 1) {
                     int ch; while ((ch = getchar()) != '\n' && ch != EOF) {}
-                    puts("Invalid input. Please type 'y' or 'n'.");
+                    puts("Invalid input. Please type 'y' or 'n'.\n");
                     continue;
             }
             // รับเฉพาะ 'y' หรือ 'n' เป็นตัวเดียวเท่านั้น
@@ -350,7 +378,7 @@ void addMode() {
                 // n = ออกจากโหมด add
                 return;
             } else {
-                puts("Invalid input. Please type 'y' or 'n'.");
+                puts("Invalid input. Please type 'y' or 'n'.\n");
                 // วนถามใหม่จนกว่าจะถูก
             }
         }
@@ -358,7 +386,10 @@ void addMode() {
     }
 }
 
-// Search mode
+/* โหมดค้นหา (Search)
+   - เลือกค้นหาได้ 3 แบบ: เลขกรมธรรม์ / ชื่อเจ้าของ / รุ่นรถ
+   - แสดงหัวตาราง + ผลลัพธ์ที่ตรงเงื่อนไข
+   - สรุปจำนวนที่พบด้วย "Found N record(s)." ทุกครั้ง */
 void searchMode() {
     while (1) {
         int choice;
@@ -379,9 +410,9 @@ void searchMode() {
         else if (choice == 1) {
             while (1) {
                 char key[STRLEN];
-                int i, count = 0;
+                int i, count = 0; // นับจำนวนที่ตรงเงื่อนไขในตัวแปร count
 
-                printf("\nPolicy number (0=Back): ");
+                printf("\nPolicy number (0=Back)\n: ");
                 if (scanf(" %63[^\n]", key) != 1) return;
                 if (strcmp(key, "0") == 0) break;
 
@@ -392,9 +423,9 @@ void searchMode() {
                         count++;
                     }
                 }
-                printf("---------------+----------------------+----------------------+------------\n");
+                printf("--------------------------------------------------------------------------\n");
                 printf("Found %d record(s).\n", count);
-                if (count == 0) printf("(No results.)\n");
+                if (count == 0) printf("(No results.)\n"); // ถ้า count == 0 ให้แจ้ง "(No results.)"
             }
 
         } else if (choice == 2) {
@@ -402,7 +433,7 @@ void searchMode() {
                 char key[STRLEN];
                 int i, count = 0;
 
-                printf("\nOwner name (0=Back): ");
+                printf("\nOwner name (0=Back)\n: ");
                 if (scanf(" %63[^\n]", key) != 1) return;
                 if (strcmp(key, "0") == 0) break;
 
@@ -413,7 +444,7 @@ void searchMode() {
                         count++;
                     }
                 }
-                printf("---------------+----------------------+----------------------+------------\n");
+                printf("--------------------------------------------------------------------------\n");
                 printf("Found %d record(s).\n", count);
                 if (count == 0) printf("(No results.)\n");
             }
@@ -423,7 +454,7 @@ void searchMode() {
                 char key[STRLEN];
                 int i, count = 0;
 
-                printf("\nCar model (0=Back): ");
+                printf("\nCar model (0=Back)\n: ");
                 if (scanf(" %63[^\n]", key) != 1) return;
                 if (strcmp(key, "0") == 0) break;
 
@@ -434,7 +465,7 @@ void searchMode() {
                         count++;
                     }
                 }
-                printf("---------------+----------------------+----------------------+------------\n");
+                printf("--------------------------------------------------------------------------\n");
                 printf("Found %d record(s).\n", count);
                 if (count == 0) printf("(No results.)\n");
             }
@@ -446,7 +477,7 @@ void searchMode() {
     }
 }
 
-// [MAIN LOOP] printMenu -> switch choice -> list/add/search
+// หน้าเมนูหลักของโปรแกรม 
 void printMenu() {
     printf("\n==== POLICY MANAGEMENT ====\n");
     printf("1) List all policies\n");
@@ -455,6 +486,10 @@ void printMenu() {
     printf("0) Exit program\n");
 }
 
+/* main:
+   - ถ้ามีไฟล์ policies.csv ให้โหลดอัตโนมัติ
+   - วนลูปเมนูหลัก: List / Add / Search / Exit
+   - ออกจากโปรแกรม: ยืนยัน (y/n) แบบเข้มงวด */
 int main() {
     // Auto-load on start (if file exists) 
     FILE *test = fopen("policies.csv", "r");
@@ -483,8 +518,8 @@ int main() {
             addMode();
         } else if (choice == 3) {
             searchMode();
-        // [EXIT CONFIRM] ask (y/n)
-        } else if (choice == 0) {
+        // Exit confirm ask (y/n) 
+        } else if (choice == 0) { 
             for (;;) {
             char ans[8];
             printf("Are you sure you want to exit? (y/n): ");
