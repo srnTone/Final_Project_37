@@ -1,6 +1,6 @@
 /*ระบบจัดการข้อมูลการประกันภัยรถยนต์
   อ่าน/บันทึกข้อมูลจากไฟล์ CSV 
-  เพิ่ม/ค้นหา/แสดงข้อมูล*/
+  เพิ่ม/ค้นหา/แสดงข้อมูล/อัพเดต/ลบ*/
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -52,7 +52,6 @@ int containsIgnoreCase(const char *s, const char *key) {
     if (k2[0] == '\0') return 1;
     return strstr(s2, k2) != NULL;
 }
-
 // ค้นหาว่ามีเลขนี้แล้วหรือไม่ ใช้กันข้อมูลซ้ำ 
 int findPolicyExact(const char *num) {
     int i;
@@ -63,7 +62,6 @@ int findPolicyExact(const char *num) {
     }
     return -1; // not found
 }
-
 /* ปรับเลขกรมธรรม์ให้เป็นรูปแบบมาตรฐาน
    รูปแบบที่รับ: ตัวอักษร 1 ตัว + ตัวเลข 1-3 หลัก (เช่น P23)
    ผลลัพธ์: แปลงเป็น ตัวอักษร + เลข 3 หลัก (เช่น P023) */
