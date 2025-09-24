@@ -1,13 +1,13 @@
+/*ระบบจัดการข้อมูลการประกันภัยรถยนต์
+  อ่าน/บันทึกข้อมูลจากไฟล์ CSV 
+  เพิ่ม/ค้นหา/แสดงข้อมูล*/
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 
-// ค่าคงที่หลักโปรแกรม
 #define MAX_RECORDS 200
 #define STRLEN 64
 
-// MAX_RECORDS: จำนวนเรคคอร์ดสูงสุดที่รองรับ
-// STRLEN     : ความยาวสตริงสูงสุดของแต่ละฟิลด์
 char policyNumber[MAX_RECORDS][STRLEN];
 char ownerName   [MAX_RECORDS][STRLEN];
 char carModel    [MAX_RECORDS][STRLEN];
@@ -15,7 +15,7 @@ char startDate   [MAX_RECORDS][STRLEN];
 int  recCount = 0;
 
 // ฟังก์ชันช่วยจัดการสตริงพื้นฐาน
-// ลบ \n/\r ที่ท้ายสตริง (ใช้หลัง fgets)
+// ลบ \n \r ที่ท้ายสตริง
 void rtrim_newline(char *s) { 
     int n = (int)strlen(s);
     while (n > 0 && (s[n-1] == '\n' || s[n-1] == '\r')) {
@@ -53,8 +53,7 @@ int containsIgnoreCase(const char *s, const char *key) {
     return strstr(s2, k2) != NULL;
 }
 
-/* ค้นหาว่ามีเลขนี้แล้วหรือไม่
-   คืนค่า index ถ้าพบ, -1 ถ้าไม่พบ (ใช้กันข้อมูลซ้ำ) */
+// ค้นหาว่ามีเลขนี้แล้วหรือไม่ ใช้กันข้อมูลซ้ำ 
 int findPolicyExact(const char *num) {
     int i;
     for (i = 0; i < recCount; i++) {
@@ -65,10 +64,9 @@ int findPolicyExact(const char *num) {
     return -1; // not found
 }
 
-/* ปรับเลขประกันให้เป็นรูปแบบมาตรฐาน
+/* ปรับเลขกรมธรรม์ให้เป็นรูปแบบมาตรฐาน
    รูปแบบที่รับ: ตัวอักษร 1 ตัว + ตัวเลข 1-3 หลัก (เช่น P23)
-   ผลลัพธ์: แปลงเป็น ตัวอักษร + เลข 3 หลัก (เช่น P023)
-   คืนค่า 1 ถ้าถูกต้อง, 0 ถ้าไม่ถูกต้อง */
+   ผลลัพธ์: แปลงเป็น ตัวอักษร + เลข 3 หลัก (เช่น P023) */
 int normalizePolicy(const char *in, char *out) {
     char c = '\0';
     int num = -1;
@@ -141,13 +139,6 @@ int isHeaderLikeRow(const char *p1, const char *p2, const char *p3, const char *
            (strcmp(p3, "CarModel")    == 0) ||
            (strcmp(p4, "StartDate")   == 0);
 }
-
-/* โหลดข้อมูลจากไฟล์ CSV
-   ขั้นตอน:
-   1) ข้าม header ถ้ามี
-   2) อ่านทีละบรรทัดแยกฟิลด์ด้วย ','
-   3) ข้ามแถวที่เป็น header/ไม่ครบ/ซ้ำ
-   4) เพิ่มลงฐานข้อมูล และนับจำนวนแถวที่โหลดสำเร็จ */
 void purgeHeaderRows(void) {
     int i, j = 0;
     for (i = 0; i < recCount; ++i) {
@@ -169,6 +160,12 @@ void purgeHeaderRows(void) {
     recCount = j;
 }
 
+/* โหลดข้อมูลจากไฟล์ CSV
+   ขั้นตอน:
+   1) ข้าม header ถ้ามี
+   2) อ่านทีละบรรทัดแยกฟิลด์ด้วย ','
+   3) ข้ามแถวที่เป็น header/ไม่ครบ/ซ้ำ
+   4) เพิ่มลงฐานข้อมูล และนับจำนวนแถวที่โหลดสำเร็จ */
 int loadFromCSVFile(const char *filename) {
     FILE *fp = fopen(filename, "r");
     char line[512];
@@ -253,21 +250,22 @@ void saveToCSVFile(const char *filename) {
     printf("Saved to %s successfully\n", filename);
 }
 
-/* ส่วนแสดงผล 1 แถว และหัวตาราง เพื่อให้รูปแบบสม่ำเสมอ */
-void printHeader() { // printHeader: พิมพ์หัวคอลัมน์และเส้นคั่น
+// printHeader: พิมพ์หัวคอลัมน์และเส้นคั่น
+void printHeader() { 
     printf("\n%-14s | %-20s | %-20s | %-10s\n", "PolicyNumber", "OwnerName", "CarModel", "StartDate");
     printf("---------------+----------------------+----------------------+------------\n");
 }
-/* ส่วนแสดงผล 1 แถว และหัวตาราง เพื่อให้รูปแบบสม่ำเสมอ */
-void printRecord(int i) { // printRecord: พิมพ์ 1 เรคคอร์ดตามคอลัมน์
+
+// printRecord: พิมพ์ 1 เรคคอร์ดตามคอลัมน์
+void printRecord(int i) { 
     printf("%-14s | %-20s | %-20s | %-10s\n",
            policyNumber[i], ownerName[i], carModel[i], startDate[i]);
 }
 
 /* แสดงข้อมูลทั้งหมดในระบบ
    - ลบแถว header ออกจากหน่วยความจำ
-   - พิมพ์หัวตาราง + ทุกรายการ
-   - สรุปจำนวนทั้งหมดท้ายตาราง */ 
+   - พิมพ์หัวตาราง + ข้อมูลทุกรายการ
+   - สรุปจำนวนข้อมูลทั้งหมดท้ายตาราง */ 
 void listAll() { 
     int i;
     if (recCount == 0) {
@@ -289,11 +287,11 @@ void listAll() {
 /* โหมดเพิ่มข้อมูล (Add)
    ลำดับ:
    1) รับเลขกรมธรรม์ -> ตรวจรูปแบบ/กันข้อมูลซ้ำ
-   2) รับชื่อเจ้าของ (0=Back)
-   3) รับรุ่นรถ (0=Back)
+   2) รับชื่อเจ้าของ
+   3) รับรุ่นรถ 
    4) รับวันที่เริ่ม -> แปลงเป็น YYYY-MM-DD
    5) เพิ่มลงฐานข้อมูล, บันทึก CSV อัตโนมัติ
-   6) ถามต่อด้วย (y/n) จนกว่าจะตอบถูกฟอร์แมต */
+   6) ถามต่อว่าจะเพิ่มต่อมั้ย (y/n) ตอบจนกว่าจะตอบถูกฟอร์แมต */
 void addMode() {
     while (1) {
         char num_in[STRLEN], num_norm[STRLEN];
