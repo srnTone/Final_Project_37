@@ -5,6 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 
+// Global config
 #define MAX_RECORDS 200
 #define STRLEN 64
 
@@ -14,7 +15,9 @@ char carModel    [MAX_RECORDS][STRLEN];
 char startDate   [MAX_RECORDS][STRLEN];
 int  recCount = 0;
 
-// ฟังก์ชันช่วยจัดการสตริงพื้นฐาน
+// ================ Helpers ================
+
+//String & format helpers
 // ลบ \n \r ที่ท้ายสตริง
 void rtrim_newline(char *s) { 
     int n = (int)strlen(s);
@@ -44,7 +47,7 @@ void toLowerStr(const char *src, char *dst) {
     }
     dst[i] = '\0';
 }
-// คืนค่า 1 ถ้า s มี key (ไม่สนตัวพิมพ์), ไม่งั้น 0
+// เช็ก substring ไม่แคร์พิมพ์เล็ก/ใหญ่
 int containsIgnoreCase(const char *s, const char *key) { 
     char s2[STRLEN], k2[STRLEN];
     toLowerStr(s, s2);
@@ -52,6 +55,8 @@ int containsIgnoreCase(const char *s, const char *key) {
     if (k2[0] == '\0') return 1;
     return strstr(s2, k2) != NULL;
 }
+
+// Policy & date helpers
 // ค้นหาว่ามีเลขนี้แล้วหรือไม่ ใช้กันข้อมูลซ้ำ 
 int findPolicyExact(const char *num) {
     int i;
@@ -101,7 +106,6 @@ int normalizePolicy(const char *in, char *out) {
     sprintf(out, "%c%03d", c, num);
     return 1;
 }
-
 /* แปลงวันที่ให้เป็นรูปแบบ YYYY-MM-DD
    อินพุต: "YYYY M D" หรือ "YYYY-M-D" (เช่น 2025 5 5 หรือ 2025-5-5)
    ตรวจช่วงปี/เดือน/วันแบบพื้นฐาน แล้วจัดรูปแบบเป็นสองหลัก */
@@ -128,15 +132,15 @@ int parseAndFormatDate(const char *in, char *out) {
     return 1;
 }
 
-/* จัดการแถวที่ดูเหมือน header
-   - isHeaderLikeRow: เช็คชื่อคอลัมน์
-   - purgeHeaderRows: ลบแถว header ออกจากหน่วยความจำและจัดอาเรย์ */
+// Header/clean & printing helpers
+// isHeaderLikeRow: เช็คชื่อคอลัมน์
 int isHeaderLikeRow(const char *p1, const char *p2, const char *p3, const char *p4) {
     return (strcmp(p1, "PolicyNumber") == 0) ||
            (strcmp(p2, "OwnerName")   == 0) ||
            (strcmp(p3, "CarModel")    == 0) ||
            (strcmp(p4, "StartDate")   == 0);
 }
+// purgeHeaderRows: ลบแถว header ออกจากหน่วยความจำและจัดอาเรย์ 
 void purgeHeaderRows(void) {
     int i, j = 0;
     for (i = 0; i < recCount; ++i) {
@@ -158,8 +162,10 @@ void purgeHeaderRows(void) {
     recCount = j;
 }
 
-/* โหลดข้อมูลจากไฟล์ CSV
-   ขั้นตอน:
+// ================ Core data functions ================
+
+// CSV Load/Save
+/* Load CSV
    1) ข้าม header ถ้ามี
    2) อ่านทีละบรรทัดแยกฟิลด์ด้วย ','
    3) ข้ามแถวที่เป็น header/ไม่ครบ/ซ้ำ
@@ -228,8 +234,7 @@ int loadFromCSVFile(const char *filename) {
     purgeHeaderRows();
     return loaded;
 }
-
-/* บันทึกข้อมูลลงไฟล์ CSV
+/* Save to CSV
    เขียนหัวตารางก่อน แล้ววนเขียนแต่ละเรคคอร์ด */
 void saveToCSVFile(const char *filename) {
     FILE *fp = fopen(filename, "w");
@@ -252,14 +257,37 @@ void printHeader() {
     printf("\n%-14s | %-20s | %-20s | %-10s\n", "PolicyNumber", "OwnerName", "CarModel", "StartDate");
     printf("---------------+----------------------+----------------------+------------\n");
 }
-
 // printRecord: พิมพ์ 1 เรคคอร์ดตามคอลัมน์
 void printRecord(int i) { 
     printf("%-14s | %-20s | %-20s | %-10s\n",
            policyNumber[i], ownerName[i], carModel[i], startDate[i]);
 }
 
-// Update prototype
+// listAll
+/* แสดงข้อมูลทั้งหมดในระบบ
+   - ลบแถว header ออกจากหน่วยความจำ
+   - พิมพ์หัวตาราง + ข้อมูลทุกรายการ
+   - สรุปจำนวนข้อมูลทั้งหมดท้ายตาราง */ 
+void listAll() { 
+    int i;
+    if (recCount == 0) {
+        printf("\n(No policies yet.)\n");
+        return;
+    }
+
+    // ลบแถวที่ชื่อเหมือน header ออกจากหน่วยความจำก่อนแสดงผล
+    purgeHeaderRows();
+
+    printHeader();
+    for (i = 0; i < recCount; i++) {
+        printRecord(i);
+    }
+    printf("--------------------------------------------------------------------------\n");
+    printf("Total policies: %d\n", recCount);
+}
+
+// Update/Delete
+// Update 
 int updatePolicyByNumber(const char *num_in,
                          const char *newOwner,
                          const char *newModel,
@@ -295,8 +323,7 @@ int updatePolicyByNumber(const char *num_in,
     }
     return 1; // success
 }
-
-// Delete prototype
+// Delete
 int deletePolicyByNumber(const char *num_in)
 {
     char num_norm[STRLEN];
@@ -322,27 +349,7 @@ int deletePolicyByNumber(const char *num_in)
     return 1;
 }
 
-/* แสดงข้อมูลทั้งหมดในระบบ
-   - ลบแถว header ออกจากหน่วยความจำ
-   - พิมพ์หัวตาราง + ข้อมูลทุกรายการ
-   - สรุปจำนวนข้อมูลทั้งหมดท้ายตาราง */ 
-void listAll() { 
-    int i;
-    if (recCount == 0) {
-        printf("\n(No policies yet.)\n");
-        return;
-    }
-
-    // ลบแถวที่ชื่อเหมือน header ออกจากหน่วยความจำก่อนแสดงผล
-    purgeHeaderRows();
-
-    printHeader();
-    for (i = 0; i < recCount; i++) {
-        printRecord(i);
-    }
-    printf("--------------------------------------------------------------------------\n");
-    printf("Total policies: %d\n", recCount);
-}
+// ================ User interaction ================
 
 /* โหมดเพิ่มข้อมูล (Add)
    ลำดับ:
@@ -527,7 +534,6 @@ void searchMode() {
                 printf("Found %d record(s).\n", count);
                 if (count == 0) printf("(No results.)\n");
             }
-
         }
         else {
             printf("Invalid choice. Please try again.\n");
@@ -677,7 +683,7 @@ void deleteMode(void) {
     }
 }
 
-/* หน้าเมนูหลักของโปรแกรม */
+// =============== Main menu program ================ 
 void printMenu() {
     printf("\n==== POLICY MANAGEMENT ====\n");
     printf("1) List all policies\n");
