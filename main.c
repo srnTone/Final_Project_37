@@ -174,7 +174,6 @@ int loadFromCSVFile(const char *filename) {
         printf("Cannot open %s for reading.\n", filename);
         return 0;
     }
-
     // ข้าม header ถ้ามี
     long pos = ftell(fp);
     if (fgets(line, sizeof(line), fp)) {
@@ -182,7 +181,8 @@ int loadFromCSVFile(const char *filename) {
         if (strstr(line, "PolicyNumber") == NULL) {
             fseek(fp, pos, SEEK_SET);
         }
-    } else {
+    } 
+    else {
         fclose(fp);
         printf("Empty file: %s\n", filename);
         return 0;
@@ -208,9 +208,10 @@ int loadFromCSVFile(const char *filename) {
         }
 
         // Avoid duplicate policy numbers 
-        if (findPolicyExact(p1) != -1) continue;
-
-        strncpy(policyNumber[recCount], p1, STRLEN - 1);
+        char num_norm[STRLEN];
+        if (!normalizePolicy(p1, num_norm)) continue;      // ข้ามแถวที่รูปแบบผิด
+        if (findPolicyExact(num_norm) != -1) continue;     // กันข้อมูลซ้ำด้วยรูปแบบมาตรฐาน
+        strncpy(policyNumber[recCount], num_norm, STRLEN - 1);
         policyNumber[recCount][STRLEN - 1] = '\0';
         strncpy(ownerName[recCount], p2, STRLEN - 1);
         ownerName[recCount][STRLEN - 1] = '\0';
@@ -225,10 +226,8 @@ int loadFromCSVFile(const char *filename) {
 
     fclose(fp);
     printf("Loaded %d record(s) from %s\n", loaded, filename);
-
     // หลังโหลด ลบheader-like row ที่อาจเล็ดรอดเข้ามา
     purgeHeaderRows();
-
     return loaded;
 }
 
@@ -260,6 +259,69 @@ void printHeader() {
 void printRecord(int i) { 
     printf("%-14s | %-20s | %-20s | %-10s\n",
            policyNumber[i], ownerName[i], carModel[i], startDate[i]);
+}
+
+// Update prototype
+int updatePolicyByNumber(const char *num_in,
+                         const char *newOwner,
+                         const char *newModel,
+                         const char *newDate)
+    {
+    char num_norm[STRLEN];
+    int idx;
+
+    // ทำให้ชัวร์ว่าเป็นฟอร์แมตมาตรฐาน เช่น P023
+    if (!normalizePolicy(num_in, num_norm)) return 0;
+
+    idx = findPolicyExact(num_norm);
+    if (idx < 0) return 0; // ไม่พบจริง ๆ
+
+    // อัปเดตเฉพาะฟิลด์ที่ส่งมาและไม่ว่าง
+    if (newOwner && newOwner[0] != '\0') {
+        strncpy(ownerName[idx], newOwner, STRLEN - 1);
+        ownerName[idx][STRLEN - 1] = '\0';
+        trim_spaces(ownerName[idx]);
+    }
+    if (newModel && newModel[0] != '\0') {
+        strncpy(carModel[idx], newModel, STRLEN - 1);
+        carModel[idx][STRLEN - 1] = '\0';
+        trim_spaces(carModel[idx]);
+    }
+    if (newDate && newDate[0] != '\0') {
+        char date_fmt[STRLEN];
+        if (!parseAndFormatDate(newDate, date_fmt)) {
+            return -1; // วันที่ไม่ถูกต้อง
+        }
+        strncpy(startDate[idx], date_fmt, STRLEN - 1);
+        startDate[idx][STRLEN - 1] = '\0';
+    }
+    return 1; // success
+}
+
+// Delete prototype
+int deletePolicyByNumber(const char *num_in)
+{
+    char num_norm[STRLEN];
+    int idx, i;
+
+    if (!normalizePolicy(num_in, num_norm)) return 0;
+
+    idx = findPolicyExact(num_norm);
+    if (idx < 0) return 0;
+
+    // เลื่อนอาร์เรย์ทับช่องที่ลบ
+    for (i = idx; i < recCount - 1; i++) {
+        strncpy(policyNumber[i], policyNumber[i+1], STRLEN);
+        policyNumber[i][STRLEN - 1] = '\0';
+        strncpy(ownerName[i],   ownerName[i+1],   STRLEN);
+        ownerName[i][STRLEN - 1]   = '\0';
+        strncpy(carModel[i],    carModel[i+1],    STRLEN);
+        carModel[i][STRLEN - 1]    = '\0';
+        strncpy(startDate[i],   startDate[i+1],   STRLEN);
+        startDate[i][STRLEN - 1]   = '\0';
+    }
+    recCount--;
+    return 1;
 }
 
 /* แสดงข้อมูลทั้งหมดในระบบ
@@ -475,12 +537,156 @@ void searchMode() {
     }
 }
 
-// หน้าเมนูหลักของโปรแกรม 
+/* โหมดแก้ไขข้อมูล (Update)
+   1) รับเลขกรมธรรม์ -> แปลงเป็นมาตรฐาน
+   2) แสดงเรคคอร์ดปัจจุบัน
+   3) รับค่าใหม่ ('-' = ไม่แก้), ตรวจสอบวันที่ถ้ากรอก
+   4) บันทึก CSV อัตโนมัติเมื่อแก้สำเร็จ */
+void updateMode(void) {
+    while (1) {
+        char num_in[STRLEN], num_norm[STRLEN];
+        int idx;
+
+        printf("\n[UPDATE] Enter policy number (A123) (0=Back)\n: ");
+        if (scanf(" %63[^\n]", num_in) != 1) return;
+        if (strcmp(num_in, "0") == 0) return;
+
+        if (!normalizePolicy(num_in, num_norm)) {
+            puts("Invalid policy number. Example: P023");
+            continue;
+        }
+        idx = findPolicyExact(num_norm);
+        if (idx < 0) {
+            printf("Not found: %s\n", num_norm);
+            continue;
+        }
+
+        // แสดงรายการก่อนแก้
+        puts("\nCurrent record:");
+        printHeader();
+        printRecord(idx);
+
+        // รับค่าใหม่ (พิมพ์ '-' เพื่อไม่แก้ฟิลด์นั้น)
+        char newOwner[STRLEN], newModel[STRLEN], newDate[STRLEN];
+        printf("\nNew owner name ('-' = keep current, 0=Back)\n: ");
+        if (scanf(" %63[^\n]", newOwner) != 1) return;
+        if (strcmp(newOwner, "0") == 0) return;
+
+        printf("New car model ('-' = keep current, 0=Back)\n: ");
+        if (scanf(" %63[^\n]", newModel) != 1) return;
+        if (strcmp(newModel, "0") == 0) return;
+
+        for (;;) {
+            printf("New start date YYYY-MM-DD ('-' = keep current, 0=Back)\n: ");
+            if (scanf(" %63[^\n]", newDate) != 1) return;
+            if (strcmp(newDate, "0") == 0) return;
+            if (strcmp(newDate, "-") == 0) break; // ไม่แก้
+            char tmp[STRLEN];
+            if (!parseAndFormatDate(newDate, tmp)) {
+                puts("Invalid date. Example: 2025-5-5 or 2025 5 5");
+                continue;
+            }
+            break;
+        }
+
+        // map '-' -> "" เพื่อให้แกน update ข้ามฟิลด์
+        if (strcmp(newOwner, "-") == 0) newOwner[0] = '\0';
+        if (strcmp(newModel, "-") == 0) newModel[0] = '\0';
+        if (strcmp(newDate,  "-") == 0) newDate[0]  = '\0';
+
+        int ok = updatePolicyByNumber(num_norm, newOwner, newModel, newDate);
+        if (ok == -1) {
+            puts("Update failed: invalid date.");
+            continue;
+        } else if (ok == 0) {
+            puts("Update failed: not found or invalid policy.");
+            continue;
+        }
+
+        puts("\nUpdated record:");
+        printHeader();
+        printRecord(findPolicyExact(num_norm));
+
+        // บันทึกอัตโนมัติ
+        saveToCSVFile("policies.csv");
+
+        // ถามต่อ
+        for (;;) {
+            char ans[8];
+            printf("\nUpdate more? (y/n): ");
+            if (scanf(" %7s", ans) != 1) return;
+            if ((ans[0]=='y'||ans[0]=='Y') && ans[1]=='\0') break; // วนทำต่อ
+            if ((ans[0]=='n'||ans[0]=='N') && ans[1]=='\0') return; // ออกจากโหมด
+            puts("Invalid input. Please type 'y' or 'n'.");
+        }
+    }
+}
+
+/* โหมดลบข้อมูล (Delete)
+   1) รับเลขกรมธรรม์ -> แปลงเป็นมาตรฐาน
+   2) แสดงเรคคอร์ดที่จะลบ
+   3) ยืนยัน (y/n)
+   4) บันทึก CSV อัตโนมัติหลังลบ */
+void deleteMode(void) {
+    while (1) {
+        char num_in[STRLEN], num_norm[STRLEN];
+        int idx;
+
+        printf("\n[DELETE] Enter policy number (A123) (0=Back)\n: ");
+        if (scanf(" %63[^\n]", num_in) != 1) return;
+        if (strcmp(num_in, "0") == 0) return;
+
+        if (!normalizePolicy(num_in, num_norm)) {
+            puts("Invalid policy number. Example: P023");
+            continue;
+        }
+        idx = findPolicyExact(num_norm);
+        if (idx < 0) {
+            printf("Not found: %s\n", num_norm);
+            continue;
+        }
+
+        puts("\nRecord to delete:");
+        printHeader();
+        printRecord(idx);
+
+        // confirm
+        for (;;) {
+            char ans[8];
+            printf("Confirm delete? (y/n): ");
+            if (scanf(" %7s", ans) != 1) return;
+            if ((ans[0]=='y'||ans[0]=='Y') && ans[1]=='\0') break;
+            if ((ans[0]=='n'||ans[0]=='N') && ans[1]=='\0') goto SKIP_DELETE;
+            puts("Invalid input. Please type 'y' or 'n'.");
+        }
+
+        if (deletePolicyByNumber(num_norm)) {
+            puts("Deleted.");
+            saveToCSVFile("policies.csv"); // บันทึกอัตโนมัติหลังลบ
+        } else {
+            puts("Delete failed.");
+        }
+
+        SKIP_DELETE:
+        for (;;) {
+            char ans[8];
+            printf("\nDelete more? (y/n): ");
+            if (scanf(" %7s", ans) != 1) return;
+            if ((ans[0]=='y'||ans[0]=='Y') && ans[1]=='\0') break;   // ทำต่อ
+            if ((ans[0]=='n'||ans[0]=='N') && ans[1]=='\0') return;   // ออก
+            puts("Invalid input. Please type 'y' or 'n'.");
+        }
+    }
+}
+
+/* หน้าเมนูหลักของโปรแกรม */
 void printMenu() {
     printf("\n==== POLICY MANAGEMENT ====\n");
     printf("1) List all policies\n");
     printf("2) Add new policies\n");
     printf("3) Search policies\n");
+    printf("4) Update a policy\n"); 
+    printf("5) Delete a policy\n");
     printf("0) Exit program\n");
 }
 
@@ -516,6 +722,10 @@ int main() {
             addMode();
         } else if (choice == 3) {
             searchMode();
+        } else if (choice == 4) {       
+            updateMode();
+        } else if (choice == 5) {        
+            deleteMode();
         // Exit confirm ask (y/n) 
         } else if (choice == 0) { 
             for (;;) {
