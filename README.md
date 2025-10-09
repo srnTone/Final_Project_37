@@ -91,19 +91,3 @@ PolicyNumber,OwnerName,CarModel,StartDate
 P023,Alice,Toyota,2025-05-05
 A007,Bob,Honda,2024-11-02
 ```
-
-## Roadmap
-
-* ตรวจ input วันเดือนปีตามปฏิทินจริง
-* ปรับอินพุตเป็น `fgets + sscanf` เพื่อลดปัญหา buffer/space
-* เพิ่มโหมด **เรียงลำดับ** และ **แบ่งหน้า (pagination)**
-* วาง **Testing ตามแนว AAA/FIRST**
-
-  * Unit: `normalizePolicy`, `parseAndFormatDate`, ค้นหาด้วย non-interactive wrapper
-  * Integration: `save → load → verify` (round-trip)
-  * E2E: เพิ่ม→บันทึก→รีเซ็ต→โหลด→ค้นหา→ตรวจจำนวน
-  * (ออปชัน) ตรวจ memory error ด้วยเครื่องมือภายนอก
-
----
-
-
